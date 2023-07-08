@@ -17,7 +17,7 @@ This blog post is an basic overview of function composition with implementation 
 We will see:
 
 - Some basic mathematical notation for composition.
-- R code to create function generic compositions.
+- R code to create generic function compositions.
 - How to implement composition with custom binary (infix) operators.
 - Some concrete examples.
 
