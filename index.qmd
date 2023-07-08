@@ -3,7 +3,7 @@ author: Michael DeCrescenzo
 categories: [code, r]
 title: Function composition
 subtitle: Concepts and a toolkit for R
-date: "2023-07-06"
+date: "2023-07-08"
 knitr:
     opts_chunk:
         eval: true
