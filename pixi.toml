@@ -1,0 +1,16 @@
+[project]
+authors = ["mikedecr <mgdecrescenzo@gmail.com>"]
+channels = ["conda-forge"]
+description = "Add a short description here"
+name = "function-composition-r"
+platforms = ["osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+r-base = ">=4.4.3,<4.5"
+quarto = ">=1.7.33,<2"
+r-knitr = ">=1.50,<2"
+r-rmarkdown = ">=2.29,<3"
+r-palmerpenguins = ">=0.1.1,<0.2"

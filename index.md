@@ -1,16 +1,18 @@
 ---
 author: Michael DeCrescenzo
-categories: [code, r]
+categories:
+  - code
+  - r
 title: Function composition
 subtitle: Concepts and a toolkit for R
 summary: |
-    Taking "R is a functional language" as a challenge.
-date: "2023-07-08"
+  Taking "R is a functional language" as a challenge.
+date: '2023-07-08'
 knitr:
-    opts_chunk:
-        eval: true
-        include: true
-        collapse: true
+  opts_chunk:
+    eval: true
+    include: true
+    collapse: true
 draft: false
 ---
 
@@ -18,45 +20,62 @@ draft: false
 This blog post is an basic overview of function composition with implementation and examples in the programming language `R`.
 We will see:
 
-- Some basic mathematical notation for composition.
-- R code to create generic function compositions.
-- How to implement composition with custom binary (infix) operators.
-- Some concrete examples.
-
+-   Some basic mathematical notation for composition.
+-   R code to create generic function compositions.
+-   How to implement composition with custom binary (infix) operators.
+-   Some concrete examples.
 
 # Leading with an example.
 
 Consider the `palmerpenguins` data.
 
-```{r}
+``` r
 library(palmerpenguins)
 
 head(penguins)
+##   species    island bill_length_mm bill_depth_mm flipper_length_mm body_mass_g
+## 1  Adelie Torgersen           39.1          18.7               181        3750
+## 2  Adelie Torgersen           39.5          17.4               186        3800
+## 3  Adelie Torgersen           40.3          18.0               195        3250
+## 4  Adelie Torgersen             NA            NA                NA          NA
+## 5  Adelie Torgersen           36.7          19.3               193        3450
+## 6  Adelie Torgersen           39.3          20.6               190        3650
+##      sex year
+## 1   male 2007
+## 2 female 2007
+## 3 female 2007
+## 4   <NA> 2007
+## 5 female 2007
+## 6   male 2007
 ```
 
 Actually, just consider the `year` column.
 
-```{r}
+``` r
 head(penguins$year)
+## [1] 2007 2007 2007 2007 2007 2007
 ```
 
 How many unique years are there?
 
-```{r}
+``` r
 length(unique(penguins$year))
+## [1] 3
 ```
 
 How did we do that?
 First we removed all duplicates from the `year` vector.
 
-```{r}
+``` r
 (n = unique(penguins$year))
+## [1] 2007 2008 2009
 ```
 
 And then we count the number of elements in that result.
 
-```{r}
+``` r
 length(n)
+## [1] 3
 ```
 
 So that was two functions, one after the other: `unique` and `length`.
@@ -64,16 +83,16 @@ So that was two functions, one after the other: `unique` and `length`.
 **Function composition** is combining two or more functions into one function.
 Here is the "typical" way we could do that in R.
 
-```{r}
+``` r
 n_unique = function(x) length(unique(x))
 
 n_unique(penguins$year)
+## [1] 3
 ```
 
 But this post will cover atypical ways of doing it.
 Obviously the atypical ways are less common, but they open up new interfaces and stylistic possibilities for our code.
 Let's explore.
-
 
 # A barely-formal definition of composition.
 
@@ -90,29 +109,25 @@ We can define $h$ without reference to the input $x$ at all.
 We can use the notation $h = g \cdot f$, where the dot $\cdot$ is an operator representing function composition.
 We can read it as "do $g$ after $f$".
 The resulting function is the same: $h(x) = (g \cdot f)(x)$.
-Just like $h$, the composition $g \cdot f$ is a _new function_, and it can take an argument $x$, but we do not actually need to refer to $x$ when defining the composition.
+Just like $h$, the composition $g \cdot f$ is a *new function*, and it can take an argument $x$, but we do not actually need to refer to $x$ when defining the composition.
 
 # Implementing abstract function composition in R
 
-I say "abstract" because, unlike our definition of `n_unique` above, we will write a tool to compose _any_ functions, without reference to specific functions or specific arguments. 
+I say "abstract" because, unlike our definition of `n_unique` above, we will write a tool to compose *any* functions, without reference to specific functions or specific arguments.
 
 Here it is:
 
-```{r}
+``` r
 compose_left = function(g, f) {
     function(...) g(f(...))
 }
 ```
 
-`compose_left` takes two arguments `g` and `f`, which are functions, and internally defines a _new function_ that applies `f` and then `g` on some unspecified arguments `...`.^[
-    Why does this function take dots `...` instead of one argument `x`?
-    This lets us evaluate our first function (`f`) on potentially multiple arguments.
-    The second function `g` doesn't have the same flexibility---it has to work with the simple returned value from `f`---but if we needed to provide other arguments to `g`, we could insert a [partial function](https://mikedecr.netlify.app/blog/partial_fns_ggplot/) for `g`.
-]
+`compose_left` takes two arguments `g` and `f`, which are functions, and internally defines a *new function* that applies `f` and then `g` on some unspecified arguments `...`.[^1]
 
 Here is how we would use this tool to define `n_unique`.
 
-```{r}
+``` r
 n_unique = compose_left(length, unique)
 ```
 
@@ -120,10 +135,10 @@ That's it.
 
 And it works, too.
 
-```{r}
+``` r
 n_unique(penguins$year)
+## [1] 3
 ```
-
 
 # Interface possibilities
 
@@ -135,27 +150,21 @@ We will now discuss how to modify our interface to function composition, so we c
 
 ## Rightward composition and its relationship to the pipe operator
 
-You may be thinking, this is a _little_ like the pipe operator.
+You may be thinking, this is a *little* like the pipe operator.
 The pipe operator `|>` (or `%>%`, if you're old school) also lets us combine functions with convenient syntax.
 But the piping and composing are different.
 Composition lets you define a function ahead of time and pass the data whenever you want, or not at all.
-Piping forces you to pass the data _now_.
+Piping forces you to pass the data *now*.
 This is extremely important because you can many more wacky things with an unevaluated function object.
 You can use a composed function as an ingredient to other function compositions.
 You can "lift" this function with other higher-order procedures like `*apply`, `Map`/`purrr::map`, `Reduce`, and so on.
-But with the pipe, it's all-or-nothing.[^delay]
-
-[^delay]: I actually find the eager behavior of the pipe operator quite inconvenient in some cases.
-So much so that I am working on tools that let the user write "pipe-like" expressions without providing data and save those expressions as functions.
-And because these "unevaluated pipe expressions" are just functions, they can be composed with other functions, lifted with higher order functions, and so on.
-This would improve the composability and reusability of data science code in R broadly.
-I wrote about the effort [here](https://mikedecr.netlify.app/blog/delayplyr/).
+But with the pipe, it's all-or-nothing.[^2]
 
 A less important difference is that the pipe reads from left to right, while composition reads from right to left.
-$g \cdot f$ means $g$ _after_ $f$.
+$g \cdot f$ means $g$ *after* $f$.
 I call this difference "less important" because we can simply write a rightward composition function...
 
-```{r}
+``` r
 # note the order of g and f
 compose_right = function(f, g) {
     function(...) g(f(...))
@@ -163,26 +172,21 @@ compose_right = function(f, g) {
 
 n_unique = compose_right(unique, length)
 n_unique(penguins$year)
+## [1] 3
 ```
 
 ...to achieve the same orientation.
-There is no functional difference between `compose_left(b, a)` and `compose_right(a, b)`.^[
-    Composing left seems more conventional in mathematics (from my limited point of view), but "postfix" notation also exists: $g \cdot f$ can be written as $f ; g$.
-]
-
+There is no functional difference between `compose_left(b, a)` and `compose_right(a, b)`.[^3]
 
 ## Infix operators for function composition.
 
 An infix operator is an operator that goes between its arguments, like `+` (add), `<-` (assign), and so on.
-Infix operators are nothing but syntax overtop a function that takes two arguments.[^prefix]
-
-[^prefix]: I am writing a different package called [`prefix`](https://github.com/mikedecr/prefix) that provides prefix function bindings for R's built-in infix operators.
-This makes it easier to write `a + b` as `add(a, b)`, or, more importantly, `a |> add(b)`.
+Infix operators are nothing but syntax overtop a function that takes two arguments.[^4]
 
 We can declare our own infix operators in R by assigning a function to a special character sequence.
 This sequence must begin and end with `%`, and you must use backticks when the operator is defined.
 
-```{r}
+``` r
 # left: evokes g . f
 `%.%` = compose_left
 
@@ -192,27 +196,28 @@ This sequence must begin and end with `%`, and you must use backticks when the o
 
 We could then use these operators to define `n_unique` like so:
 
-```{r}
+``` r
 # left
 n_unique = length %.% unique
 n_unique(penguins$year)
+## [1] 3
 
 # right
 n_unique = unique %;% length 
 n_unique(penguins$year)
+## [1] 3
 ```
-
 
 ## n-ary composition
 
-The `compose_left` and `compose_right` functions each take _two_ arguments.
+The `compose_left` and `compose_right` functions each take *two* arguments.
 But you can compose as many functions as we want.
 Composition is **associative**, so $(a \cdot b) \cdot c$ is the same as $a \cdot (b \cdot c)$.
 The result is the same as long as the order of function application doesn't change.
 
 So let's write a `compose` function that can handle as many functions as we can give it.
 
-```{r}
+``` r
 compose = function(...) {
     fns = c(...)
     Reduce(compose_left, fns, init = identity)
@@ -221,37 +226,61 @@ compose = function(...) {
 
 We will introduce a third function for our example, `as.character`.
 
-```{r}
+``` r
 chr_n_unique = compose(as.character, length, unique)
 
 chr_n_unique(penguins$year)
+## [1] "3"
 ```
 
 We implement this n-ary composition with an underlying call to `Reduce`.
 A reduction is a programming technique where a binary operation is repeatedly applied over a sequence of values until one output value remains.
 So our function `compose(as.character, length, unique)` is created in the following way:
 
-- compose `identity` and `as.character` (any function `f` composed with `identity` is just `f`)
-- compose the result up to now with `length`
-- compose the result up to now with `unique`
+-   compose `identity` and `as.character` (any function `f` composed with `identity` is just `f`)
+-   compose the result up to now with `length`
+-   compose the result up to now with `unique`
 
 So it creates essentially `compose_left(compose_left(compose_left(identity, as.character), length), unique)`.
 
-```{r}
+``` r
 chr_n_unique = compose_left(compose_left(compose_left(identity, as.character), length), unique)
 chr_n_unique(penguins$year)
+## [1] "3"
 ```
 
 One clever thing about this design is that we can pass arguments as dots `...` or as a vector `c(...)`.
-This is useful because we can organize our functions with normal R data containers ahead of time: the functions _are data!_
+This is useful because we can organize our functions with normal R data containers ahead of time: the functions *are data!*
 It also lets the syntax directly mimic the associative property of function composition in mathematics, as function compositions are equivalent regardless of the prior "grouping" of composed units.
 
-```{r}
+``` r
 yr = penguins$year
 
 compose(c(as.character, length, unique))(yr)
+## [1] "3"
 compose(c(as.character, length), unique)(yr)
+## [1] "3"
 compose(as.character, c(length, unique))(yr)
+## [1] "3"
 compose(compose(as.character, length), unique)(yr)
+## [1] "3"
 compose(as.character, compose(length, unique))(yr)
+## [1] "3"
 ```
+
+[^1]: 
+    Why does this function take dots `...` instead of one argument `x`?
+    This lets us evaluate our first function (`f`) on potentially multiple arguments.
+    The second function `g` doesn't have the same flexibility---it has to work with the simple returned value from `f`---but if we needed to provide other arguments to `g`, we could insert a [partial function](https://mikedecr.netlify.app/blog/partial_fns_ggplot/) for `g`.
+
+[^2]: I actually find the eager behavior of the pipe operator quite inconvenient in some cases.
+    So much so that I am working on tools that let the user write "pipe-like" expressions without providing data and save those expressions as functions.
+    And because these "unevaluated pipe expressions" are just functions, they can be composed with other functions, lifted with higher order functions, and so on.
+    This would improve the composability and reusability of data science code in R broadly.
+    I wrote about the effort [here](https://mikedecr.netlify.app/blog/delayplyr/).
+
+[^3]: 
+    Composing left seems more conventional in mathematics (from my limited point of view), but "postfix" notation also exists: $g \cdot f$ can be written as $f ; g$.
+
+[^4]: I am writing a different package called [`prefix`](https://github.com/mikedecr/prefix) that provides prefix function bindings for R's built-in infix operators.
+    This makes it easier to write `a + b` as `add(a, b)`, or, more importantly, `a |> add(b)`.
